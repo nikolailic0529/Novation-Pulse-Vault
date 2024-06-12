@@ -34,9 +34,10 @@ async function deploy() {
     const mainnet = process.env.NETWORK == "mainnet" ? true : false;
     const url = mainnet ? process.env.URL_MAIN : process.env.URL_TEST;
     const curBlock = await ethers.getDefaultProvider(url).getBlockNumber();
-    const vaultAddress = mainnet ? address.mainnet.farm.vault : address.testnet.farm.vault;
-    const strategyAddress = mainnet ? address.mainnet.farm.strategy : address.testnet.farm.strategy;
-    const assetAddress = mainnet ? address.mainnet.farm.asset : address.testnet.farm.asset;
+    const vaultAddress = mainnet ? address.mainnet.vault : address.testnet.vault;
+    const strategyAddress = mainnet ? address.mainnet.strategy : address.testnet.strategy;
+    const assetAddress = mainnet ? address.mainnet.usdt : address.testnet.usdt;
+    const payoutAddress = mainnet ? address.mainnet.payoutAgent : address.testnet.payoutAgent;
 
     const strategyFactory: MocStrategy__factory = new MocStrategy__factory(deployer);
     let strategy: MocStrategy = strategyFactory.attach(strategyAddress).connect(deployer);
@@ -48,7 +49,7 @@ async function deploy() {
     const vaultFactory: TefiVault__factory = new TefiVault__factory(deployer);
     let vault: TefiVault = vaultFactory.attach(vaultAddress).connect(deployer);
     if ("Redeploy" && true) {
-        vault = await vaultFactory.deploy("0x12D16f3A335dfdB575FacE8e3ae6954a1C0e24f1", assetAddress);
+        vault = await vaultFactory.deploy("0x12D16f3A335dfdB575FacE8e3ae6954a1C0e24f1", assetAddress, payoutAddress);
     }
     console.log('TefiVault: ', vault.address);
 
