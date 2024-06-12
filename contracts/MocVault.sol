@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.1;
+pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
@@ -22,10 +22,9 @@ contract MocVault is Ownable, ReentrancyGuard {
 
     uint public rebalanceRate = 20;
     uint public profits;
-    uint public totalSupply;
+    uint public totalLoss;
     uint public totalShare;
 
-    mapping(address => uint) public amounts;
     mapping(address => uint) public shares;
 
     modifier onlyStrategy {
@@ -67,9 +66,7 @@ contract MocVault is Ownable, ReentrancyGuard {
         asset.transferFrom(msg.sender, address(this), _amount);
 
         shares[msg.sender] += share;
-        amounts[msg.sender] += _amount;
         totalShare += share;
-        totalSupply += _amount;
 
         _rebalance();
     }
@@ -81,26 +78,34 @@ contract MocVault is Ownable, ReentrancyGuard {
         require (amount <= available(), "!enough");
 
         shares[msg.sender] -= _share;
-        amounts[msg.sender] -= amount;
         totalShare -= _share;
-        totalSupply -= amount;
 
         asset.safeTransfer(msg.sender, amount);
     }
 
     function reportLoss(uint _loss) external {
-        require (_loss <= totalSupply / 2, "wrong lose report");
-        uint toInvest = _loss;
+        require (_loss <= totalShare / 2, "wrong lose report");
         if (_loss <= profits) {
             profits -= _loss;
         } else {
-            toInvest = profits;
-            underlying -= (_loss - profits);
+            totalLoss += (_loss - profits);
             profits = 0;
         }
-        if (toInvest > 0) {
-            asset.safeTransfer(strategy, toInvest);
-            IStrategy(strategy).deposit(toInvest);
+        underlying -= _loss;
+    }
+
+    /// Report profit to Platform
+    function reportProfit(uint _profit) external {
+        require (asset.balanceOf(msg.sender) >= _profit, "!profit");
+        require (asset.allowance(msg.sender, address(this)) >= _profit, "!allowance");
+
+        asset.safeTransferFrom(msg.sender, address(this), _profit);
+
+        if (_profit > totalLoss) {
+            profits += (_profit - totalLoss);
+            totalLoss = 0;
+        } else {
+            totalLoss -= _profit;
         }
     }
 
@@ -120,8 +125,8 @@ contract MocVault is Ownable, ReentrancyGuard {
     /// Returns amount needed to refill
     function refillable() public view returns (uint) {
         uint curBal = available();
-        uint poolBal = curBal + underlying - profits;
-        uint keepBal = rebalanceRate * poolBal / 100 + profits;
+        uint poolBal = curBal + underlying;
+        uint keepBal = rebalanceRate * poolBal / 100;
         
         if (curBal >= keepBal) return 0;
 
@@ -130,17 +135,12 @@ contract MocVault is Ownable, ReentrancyGuard {
 
     function investable() public view returns (uint) {
         uint curBal = available();
-        uint poolBal = curBal + underlying - profits;
-        uint keepBal = rebalanceRate * poolBal / 100 + profits;
+        uint poolBal = curBal + underlying;
+        uint keepBal = rebalanceRate * poolBal / 100;
         
         if (curBal <= keepBal) return 0;
 
         return curBal - keepBal;
-    }
-
-    function totalLoss() public view returns (uint) {
-        uint totalAvailable = underlying + available() - profits;
-        return totalSupply > totalAvailable ? (totalSupply - totalAvailable) : 0;
     }
 
     /// Auto refill the fillable amount
@@ -148,31 +148,6 @@ contract MocVault is Ownable, ReentrancyGuard {
         uint amount = refillable();
         asset.safeTransferFrom(msg.sender, address(this), amount);
         underlying -= amount;
-    }
-
-    /// Report profit to Platform
-    function payout(uint _amount) external {
-        uint _totalLoss = totalLoss();
-        uint _payout = _amount;
-        if (_payout > _totalLoss) _payout -= _totalLoss;
-        else _payout = 0;
-        profits += _payout;
-        
-        if (_payout > 0) {
-            asset.safeTransferFrom(msg.sender, address(this), _payout);
-        }
-
-        underlying += (_amount - _payout);
-    }
-
-    function manualPayout(uint _amount) external nonReentrant {
-        uint _totalLoss = totalLoss();
-        uint _payout = _amount;
-        if (_payout > _totalLoss) _payout -= _totalLoss;
-        else _payout = 0;
-        profits += _payout;
-        
-        asset.safeTransferFrom(msg.sender, address(this), _amount);
     }
 
     function rebalance() external nonReentrant {

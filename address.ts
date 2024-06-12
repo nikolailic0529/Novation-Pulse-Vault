@@ -10,6 +10,7 @@ export const address = {
         // vault: "0xdabf7045B2dbFd9885B2C51876b88d5A37739e84",
         // vault: "0x9bF8D97F683B2Aa97BA799d72D0e4Df4F91c19e0",
         vault: "0x40df55b76e895879a94f818a70699fef3fe63e89",
+        mocVault: "0xA2047f305EE992CB6f3FF5A308AccAFeFFb7a2c4",
         payoutAgent: "0x8C61553Ed7Baf005ec6e04ea0Abb1eA06483E68d"
     },
     testnet: {
@@ -19,8 +20,9 @@ export const address = {
         swap: "0x681dCD13e55C295AAD0141952bF94cF785A5179C",
         vfx: "0x43916De3b9c0b9A2aCdE5D74bF564dD9b6F70649",
         usdt: "0xd7d7F4313A6F098c200aFc4f313DC84301D55Cd1",
-        strategy: "0x656a0c3aC9900f74305FcC0338DCaD8A8DF4f9BF",
+        strategy: "0x90bF2aC3BC416F7E08798C81Da96034eCBaA1bA6",
         vault: "0xA2047f305EE992CB6f3FF5A308AccAFeFFb7a2c4",
+        mocVault: "0x6db9d9cC5E1b0B5e8534406e79ce4Ff132cfF7d7",
         payoutAgent: "0xc4e8Bb717d6B083aaab6fcE39bB7fa056FA71Fb0"
     }
 }

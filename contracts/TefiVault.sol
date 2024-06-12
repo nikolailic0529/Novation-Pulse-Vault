@@ -38,6 +38,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     uint public totalShare;
     uint public underlying;
     uint public profits;
+    uint public totalLoss;
     mapping (uint => uint) public dailyProfit;
     mapping (uint => uint) public dailyLoss;
 
@@ -59,6 +60,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     uint public maxVipSupply = 500_000 ether;
     bool public isPublic;
 
+    bool public lockedWithdrawal;
     bool locked;
     uint public constant DUST = 0.1 ether;
 
@@ -70,7 +72,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     event Compounded(address indexed user, uint amount);
 
     event Lost(uint amount);
-    event Payout(uint amount, uint profit);
+    event Payout(uint profit);
     event Refilled(uint amount);
 
     modifier onlyStrategy {
@@ -158,7 +160,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         return curBal > user.amount ? user.amount : curBal;
     }
 
-    function lostOf(address _user) public view returns (uint) {
+    function lossOf(address _user) public view returns (uint) {
         if (totalShare == 0) return 0;
         UserInfo storage user = users[_user];
         uint curBal = user.share * balance() / totalShare;
@@ -185,11 +187,6 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
 
     function todayProfit() external view returns (uint) {
         return dailyProfit[block.timestamp / 1 days * 1 days];
-    }
-
-    function totalLoss() public view returns (uint) {
-        uint totalAvailable = underlying + available() - profits;
-        return totalSupply > totalAvailable ? (totalSupply - totalAvailable) : 0;
     }
 
     function todayLoss() external view returns (uint) {
@@ -311,6 +308,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     }
 
     function withdraw(uint _amount, bool _sellback) external nonReentrant updateUserList clearDustShare {
+        require (!lockedWithdrawal, "locked withdrawal");
         UserInfo storage user = users[msg.sender];
         uint principal = principalOf(msg.sender);
         require (principal >= _amount, "exceeded amount");
@@ -332,6 +330,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     }
 
     function withdrawAll(bool _sellback) external nonReentrant updateUserList {
+        require (!lockedWithdrawal, "locked withdrawal");
         _withdrawAll(msg.sender, _sellback);
     }
 
@@ -494,20 +493,36 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
 
     function reportLoss(uint _loss) external onlyStrategy nonReentrant {
         require (_loss <= totalSupply / 2, "wrong lose report");
-        uint toInvest = _loss;
+
+        dailyLoss[block.timestamp / 1 days * 1 days] += _loss;
+
         if (_loss <= profits) {
             profits -= _loss;
         } else {
-            toInvest = profits;
-            underlying -= (_loss - profits);
+            totalLoss += (_loss - profits);
             profits = 0;
         }
-        if (toInvest > 0) {
-            asset.safeTransfer(strategy, toInvest);
-            IStrategy(strategy).deposit(toInvest);
-        }
+        underlying -= _loss;
         
         emit Lost(_loss);
+    }
+
+    function reportProfit(uint _profit) external onlyStrategy nonReentrant {
+        require (asset.balanceOf(msg.sender) >= _profit, "!profit");
+        require (asset.allowance(msg.sender, address(this)) >= _profit, "!allowance");
+
+        dailyProfit[block.timestamp / 1 days * 1 days] += _profit;
+
+        asset.safeTransferFrom(msg.sender, address(this), _profit);
+
+        if (_profit > totalLoss) {
+            profits += (_profit - totalLoss);
+            totalLoss = 0;
+        } else {
+            totalLoss -= _profit;
+        }
+
+        emit Payout(_profit);
     }
 
     function close() external onlyStrategy whenPaused {
@@ -530,38 +545,6 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         underlying -= amount;
 
         emit Refilled(amount);
-    }
-
-    function payout(uint _amount) external onlyStrategy nonReentrant {
-        dailyProfit[block.timestamp / 1 days * 1 days] += _amount;
-
-        uint _totalLoss = totalLoss();
-        uint _payout = _amount;
-        if (_payout > _totalLoss) _payout -= _totalLoss;
-        else _payout = 0;
-        profits += _payout;
-        
-        if (_payout > 0) {
-            asset.safeTransferFrom(msg.sender, address(this), _payout);
-        }
-
-        underlying += (_amount - _payout);
-
-        emit Payout(_amount, _payout);
-    }
-
-    function manualPayout(uint _amount) external nonReentrant {
-        dailyProfit[block.timestamp / 1 days * 1 days] += _amount;
-
-        uint _totalLoss = totalLoss();
-        uint _payout = _amount;
-        if (_payout > _totalLoss) _payout -= _totalLoss;
-        else _payout = 0;
-        profits += _payout;
-        
-        asset.safeTransferFrom(msg.sender, address(this), _amount);
-
-        emit Payout(_amount, _payout);
     }
 
     function clearExpiredUsers(uint _count) external onlyOwner nonReentrant {
@@ -687,6 +670,17 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         require (totalShare == 0, "existing user fund");
         uint curBal = available();
         asset.safeTransfer(msg.sender, curBal);
+    }
+
+    function lockWithdrawal(bool _flag) external onlyOwner {
+        lockedWithdrawal = _flag;
+    }
+
+    function emergencyWithdraw(uint _amount) external onlyOwner whenPaused {
+        uint curBal = balanceOf(address(this));
+        require (curBal >= _amount, "!fund");
+
+        asset.safeTransfer(msg.sender, _amount);
     }
 
     function pause() external onlyOwner {

@@ -11,13 +11,10 @@ interface ITefiVault {
     function principalOf(address) external view returns (uint);
     function balanceOf(address) external view returns (uint);
     function earned(address) external view returns (uint);
-    function lostOf(address) external view returns (uint);
+    function lossOf(address) external view returns (uint);
 }
 
 interface ITefiVaultForPulse is ITefiVault {
-    // Pay rewards from bot earning via this method with reward amount.
-    // NOTE: The bot wallet needs to approve reward amount before calling this method
-    function payout(uint) external;
     // The bot is able to refill some fund for users to witdraw.
     // NOTE: The bot will need approval like `payout` method 
     // and able to get exact amount to be refilled using `refillable` method
@@ -25,6 +22,9 @@ interface ITefiVaultForPulse is ITefiVault {
     // The bot can calls this method instead of `refill` method.
     // This method will charge the bot exact refillable amount automatically.
     function autoRefill() external;
+    // Pay rewards from bot earning via this method with reward amount.
+    // NOTE: The bot wallet needs to approve reward amount before calling this method
+    function reportProfit(uint) external;
     // The bot reports lost amount using this method.
     function reportLoss(uint) external;
     // The bot will be able to return back all user funds using this method when it closed.
