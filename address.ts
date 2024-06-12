@@ -6,11 +6,14 @@ export const address = {
         swap: "0x2085B84912531B126f1C92cd70A71381713f0795",
         vfx: "0xe06f46AFD251B06152B478d8eE3aCea534063994",
         usdt: "0x55d398326f99059fF775485246999027B3197955",
-        strategy: "0x9F6ea15eb813e82f88a8D966504f716294432A90",
-        // vault: "0x40df55b76e895879a94f818a70699fef3fe63e89",
-        vault: "0x6c2076cFfE2Fb331c89e3A3cc67C463417B1C905",
+        // strategy: "0x9F6ea15eb813e82f88a8D966504f716294432A90",
+        // vault: "0x6c2076cFfE2Fb331c89e3A3cc67C463417B1C905",
         mocVault: "0xA2047f305EE992CB6f3FF5A308AccAFeFFb7a2c4",
-        payoutAgent: "0x8C61553Ed7Baf005ec6e04ea0Abb1eA06483E68d"
+        // payoutAgent: "0x8C61553Ed7Baf005ec6e04ea0Abb1eA06483E68d"
+        payoutAgent: "0x7cf047f183A11AD5ff1F3572B6300B46eb00D39C",
+        // strategy: "0xbf2eE6B75d5aA80265ac1D045104eFFb46115bBE",
+        strategy: "0x885880b226aDF7783a246f89284B5D5F67d76E84",
+        vault: "0x66AD7EF241d6773C24444497b84e40c10fe2521B"
     },
     testnet: {
         bnb: "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd",

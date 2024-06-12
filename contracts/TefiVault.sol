@@ -31,8 +31,8 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     address public strategy;
     IERC20 public asset;
     address public payoutAgent;
-    address public treasuryWallet = 0x63F0984f33538c779F8645D07eEe5b9682fdbb08;
-    address public reserveWallet = 0x7B9e671B6cd10FD782Bdb982D40ffc0435C3C030;
+    address public treasuryWallet = 0x4734ca96314F0539E0d0D62FcEBc28dBF39F05C9;
+    address public reserveWallet = 0x55A6Eed07D656e340eFAd9291de26f0e31c4E962;
 
     uint public totalSupply;
     uint public totalShare;
@@ -111,6 +111,8 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         payoutAgent = _payoutAgent;
 
         asset.approve(payoutAgent, type(uint).max);
+
+        _pause();
     }
 
     function getUserList() external view returns (address[] memory) {
@@ -213,7 +215,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         return (wallets.length, wallets);
     }
 
-    function bulkDeposit(address[] calldata _users, uint[] calldata _amounts) external whenNotPaused nonReentrant {
+    function bulkDeposit(address[] calldata _users, uint[] calldata _amounts) external nonReentrant {
         require (agents[msg.sender] == true, "!agent");
         require (_users.length == _amounts.length, "!sets");
 
@@ -677,6 +679,10 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
 
     function updateTreasuryWallet(address _wallet) external onlyOwner {
         treasuryWallet = _wallet;
+    }
+
+    function updateReserveWallet(address _wallet) external onlyOwner {
+        reserveWallet = _wallet;
     }
 
     function withdrawInStuck() external onlyOwner whenPaused {

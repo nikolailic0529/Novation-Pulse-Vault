@@ -22,16 +22,16 @@ contract Strategy is Ownable, Pausable, ReentrancyGuard {
 
     ITefiVaultForPulse public vault;
     IERC20 public asset;
-    address public operator;
+    address public operator = 0xe4c51294d509023973F3B3d802d8BeA1422dA3E3;
 
     mapping (address => uint) public cexWeights;
     CexInfo[] public cexs;
 
-    address public traderWallet = 0x1aa101455b81FA63C2938026100a035Effd9CF39;
-    address public platformWallet = 0x688bd574e0c3DC9E74BC0D5BD788DB61778A99bD;
-    address public treasuryWallet = 0x703644b42027C89B1dad99d86906d913216Af41B;
-    address public insuranceWallet = 0x8DfDca05002c8c6252aF9725c76E37488373FeE3;
-    address public devWallet = 0xc8856834CBaD45928E0784dED6eb77AE483c3400;
+    address public traderWallet = 0x273B4Dc588695Ab7B88Bd47c5e40E4ba227bb6e5;
+    address public platformWallet = 0x28A0a8d8851e4C0388d7def56e2196dDc078F859;
+    address public treasuryWallet = 0x5aBB3Dd5015c12d96492Df453F9dC19b777CCFEB;
+    address public insuranceWallet = 0xF4f270a88141523F8f8332e64ECb435807266098;
+    address public devWallet = 0x6e48745Fb2DfE5495F66B2B789f08E1911216f8A;
 
     uint public totalFee = 150;     // 15% totally
     uint public traderFee = 50;     // 5%
@@ -58,7 +58,6 @@ contract Strategy is Ownable, Pausable, ReentrancyGuard {
 
     constructor(address _asset) {
         asset = IERC20(_asset);
-        operator = msg.sender;
     }
 
     function setOperator(address _operator) external onlyOwner {
@@ -163,9 +162,6 @@ contract Strategy is Ownable, Pausable, ReentrancyGuard {
         uint bal = asset.balanceOf(address(this));
         require (bal >= _amount, "!amount");
 
-        // If someone sent fund directly here, call payout for the profit
-        if (bal > _amount) vault.reportProfit(bal - _amount);
-
         _deposit();
 
         emit Deposited(bal - _amount);
@@ -193,6 +189,10 @@ contract Strategy is Ownable, Pausable, ReentrancyGuard {
         require (_operatorBal >= _amount, "!profit fund");
 
         asset.safeTransferFrom(operator, address(this), _amount);
+
+        // If someone sent the fund directly here, it will be added to the profit
+        _amount = asset.balanceOf(address(this));
+
         cexs[_cexId].profit += _amount;
 
         uint feeAmount = _amount * totalFee / 1000;
