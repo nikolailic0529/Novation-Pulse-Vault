@@ -13,6 +13,35 @@ interface ISellessSwap {
     function sell(address _token, uint _amountIn, uint _amountOutMin) external;
 }
 
+contract SellAgent is Ownable {
+    using SafeERC20 for IERC20;
+    IERC20 public token;
+    ISellessSwap sellessSwap = ISellessSwap(0x2085B84912531B126f1C92cd70A71381713f0795);
+
+    constructor(address _token) {
+        token = IERC20(_token);
+        token.approve(address(sellessSwap), type(uint).max);
+    }
+    
+    function sellToken(uint _amount) external returns (uint) {
+        uint before = token.balanceOf(address(this));
+        token.safeTransferFrom(msg.sender, address(this), _amount);
+        _amount = token.balanceOf(address(this)) - before;
+        before = address(this).balance;
+        sellessSwap.sell(address(token), _amount, 0);
+        uint amount = address(this).balance - before;
+        payable(msg.sender).call{value: amount}("");
+        return amount;
+    }
+
+    function setToken(address _token) external onlyOwner {
+        token = IERC20(_token);
+        token.approve(address(sellessSwap), type(uint).max);
+    }
+
+    receive() external payable {}
+}
+
 contract PayoutAgent is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -23,12 +52,15 @@ contract PayoutAgent is Ownable, ReentrancyGuard {
     IERC20 public payoutToken;
     IERC20 public token;
     IERC20 public constant wbnb = IERC20(0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c);
+    SellAgent public sellAgent;
 
     constructor(address _token, address _payout) {
         payoutToken = IERC20(_payout);
         token = IERC20(_token);
         token.approve(address(pcsRouter), type(uint).max);
-        payoutToken.approve(address(sellessSwap), type(uint).max);
+
+        sellAgent = new SellAgent(_payout);
+        payoutToken.approve(address(sellAgent), type(uint).max);
     }
 
     function payout(address _to, uint _amount, bool _sellback) external nonReentrant {
@@ -55,7 +87,8 @@ contract PayoutAgent is Ownable, ReentrancyGuard {
         _amount = payoutToken.balanceOf(address(this)) - before;
 
         // Sell-back with tax
-        _amount = _sellPayoutToken(_amount);
+        // _amount = _sellPayoutToken(_amount);
+        _amount = sellAgent.sellToken(_amount);
         _buyToken(_to, _amount);
     }
 
@@ -111,6 +144,8 @@ contract PayoutAgent is Ownable, ReentrancyGuard {
 
     function setPayoutToken(address _token) external onlyOwner {
         payoutToken = IERC20(_token);
+        sellAgent.setToken(_token);
+        payoutToken.approve(address(sellAgent), type(uint).max);
     }
 
     receive() external payable {}

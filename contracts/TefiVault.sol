@@ -27,7 +27,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     address public strategy;
     IERC20 public asset;
     address public payoutAgent;
-    address public constant treasuryWallet = 0x12D16f3A335dfdB575FacE8e3ae6954a1C0e24f1;
+    address public treasuryWallet = 0x647BB910944165D14b961985c28b06b08cA47f77;
 
     uint public totalSupply;
     uint public totalShare;
@@ -45,6 +45,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
 
     uint public rebalanceRate = 20;
     uint public farmPeriod = 60 days;
+    uint public expireDelta = 2 days;
     uint public maxSupply = type(uint).max;
     uint public maxUserSupply = 1_000_000 ether;
     bool public isPublic;
@@ -162,22 +163,22 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         return totalBal > totalSupply ? (totalBal - totalSupply) : 0;
     }
 
-    function checkExpiredUsers() external view returns (address[] memory) {
+    function checkExpiredUsers() external view returns (uint, address[] memory) {
         uint count;
         for (uint i = 0; i < userList.length(); i++) {
-            if (users[userList.at(i)].expireAt + 2 days <= block.timestamp) count++;
+            if (users[userList.at(i)].expireAt + expireDelta <= block.timestamp) count++;
         }
-        if (count == 0) return new address[](0);
+        if (count == 0) return (0, new address[](0));
         address[] memory wallets = new address[](count);
         count = 0;
         for (uint i = 0; i < userList.length(); i++) {
             address wallet = userList.at(i);
-            if (users[wallet].expireAt + 2 days <= block.timestamp) {
+            if (users[wallet].expireAt + expireDelta <= block.timestamp) {
                 wallets[count] = wallet;
                 count++;
             }
         }
-        return wallets;
+        return (wallets.length, wallets);
     }
 
     function bulkDeposit(address[] calldata _users, uint[] calldata _amounts) external whenNotPaused nonReentrant {
@@ -259,6 +260,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
 
         if (user.expireAt == 0) {
             user.expireAt = block.timestamp + farmPeriod;
+            user.claimedAt = block.timestamp;
         }
 
         if (!invested[msg.sender]) invested[msg.sender] = true;
@@ -455,6 +457,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     }
 
     function refill(uint _amount) external onlyStrategy nonReentrant {
+        require (_amount <= underlying, "exceeded amount");
         asset.safeTransferFrom(msg.sender, address(this), _amount);
         underlying -= _amount;
     }
@@ -470,10 +473,10 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         profits += _amount;
     }
 
-    function clearExpiredUsers() external nonReentrant {
+    function clearExpiredUsers(uint _count) external onlyOwner nonReentrant {
         uint count;
         for (uint i = 0; i < userList.length(); i++) {
-            if (users[userList.at(i)].expireAt + 2 days <= block.timestamp) {unchecked {++count;}}
+            if (users[userList.at(i)].expireAt + expireDelta <= block.timestamp) {unchecked {++count;}}
         }
         require (count > 0, "!expired users");
         
@@ -481,19 +484,29 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         count = 0;
         for (uint i = 0; i < userList.length(); i++) {
             address user = userList.at(i);
-            if (users[user].expireAt + 2 days > block.timestamp) continue;
+            if (users[user].expireAt + expireDelta > block.timestamp) continue;
+            
+            uint bal = balanceOf(user);
+            if (available() - profits < bal) continue; // check over-withdrawal
+            
             _withdrawAll(user, false);
             wallets[count] = user;
             unchecked { ++count; }
+
+            if (count >= _count) break;
         }
         
-        for (uint i = 0; i < wallets.length; i++) {
+        for (uint i = 0; i < count; i++) {
             userList.remove(wallets[i]);
         }
     }
 
     function updateFarmPeriod(uint _period) external onlyOwner {
         farmPeriod = _period;
+    }
+
+    function updateExpireDelta(uint _delta) external onlyOwner {
+        expireDelta = _delta;
     }
     
     function setRebalanceRate(uint _rate) external onlyOwner {
@@ -552,6 +565,10 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     function updateStrategy(address _strategy) external onlyOwner whenPaused {
         require (underlying == 0, "existing underlying amount");
         strategy = _strategy;
+    }
+
+    function updateTreasuryWallet(address _wallet) external onlyOwner {
+        treasuryWallet = _wallet;
     }
 
     function withdrawBoostFund(uint _amount) external onlyOwner whenPaused nonReentrant {

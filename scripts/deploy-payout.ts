@@ -21,7 +21,8 @@ async function deploy() {
     console.log((new Date()).toLocaleString());
     
     // const deployer = (await ethers.getSigners()).filter(account => account.address === "0x32f1C25148DeCbdBe69E1cc2F87E0237BC34b700")[0];
-    const deployer = (await ethers.getSigners()).filter(account => account.address === "0x12D16f3A335dfdB575FacE8e3ae6954a1C0e24f1")[0];
+    // const deployer = (await ethers.getSigners()).filter(account => account.address === "0x12D16f3A335dfdB575FacE8e3ae6954a1C0e24f1")[0];
+    const deployer = (await ethers.getSigners()).filter(account => account.address === "0x647BB910944165D14b961985c28b06b08cA47f77")[0];
     
     console.log(
         "Deploying contracts with the account:",

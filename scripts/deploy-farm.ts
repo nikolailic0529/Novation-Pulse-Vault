@@ -21,7 +21,8 @@ async function deploy() {
     console.log((new Date()).toLocaleString());
     
     // const deployer = (await ethers.getSigners()).filter(account => account.address === "0x32f1C25148DeCbdBe69E1cc2F87E0237BC34b700")[0];
-    const deployer = (await ethers.getSigners()).filter(account => account.address === "0x12D16f3A335dfdB575FacE8e3ae6954a1C0e24f1")[0];
+    // const deployer = (await ethers.getSigners()).filter(account => account.address === "0x12D16f3A335dfdB575FacE8e3ae6954a1C0e24f1")[0];
+    const deployer = (await ethers.getSigners()).filter(account => account.address === "0x647BB910944165D14b961985c28b06b08cA47f77")[0];
     
     console.log(
         "Deploying contracts with the account:",
@@ -39,21 +40,21 @@ async function deploy() {
     const assetAddress = mainnet ? address.mainnet.usdt : address.testnet.usdt;
     const payoutAddress = mainnet ? address.mainnet.payoutAgent : address.testnet.payoutAgent;
 
-    const strategyFactory: MocStrategy__factory = new MocStrategy__factory(deployer);
-    let strategy: MocStrategy = strategyFactory.attach(strategyAddress).connect(deployer);
-    if ("Redeploy" && false) {
-        strategy = await strategyFactory.deploy(assetAddress);
-    }
-    console.log('MocStrategy: ', strategy.address);
+    // const strategyFactory: MocStrategy__factory = new MocStrategy__factory(deployer);
+    // let strategy: MocStrategy = strategyFactory.attach(strategyAddress).connect(deployer);
+    // if ("Redeploy" && false) {
+    //     strategy = await strategyFactory.deploy(assetAddress);
+    // }
+    // console.log('MocStrategy: ', strategy.address);
     
     const vaultFactory: TefiVault__factory = new TefiVault__factory(deployer);
     let vault: TefiVault = vaultFactory.attach(vaultAddress).connect(deployer);
     if ("Redeploy" && true) {
-        vault = await vaultFactory.deploy("0x12D16f3A335dfdB575FacE8e3ae6954a1C0e24f1", assetAddress, payoutAddress);
+        vault = await vaultFactory.deploy("0x647BB910944165D14b961985c28b06b08cA47f77", assetAddress, payoutAddress);
     }
     console.log('TefiVault: ', vault.address);
 
-    await strategy.setVault(vault.address);
+    // await strategy.setVault(vault.address);
 
     const afterBalance = await deployer.getBalance();
     console.log(
