@@ -8,11 +8,17 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 import "./interfaces/INovationRouter02.sol";
 
+interface ISellessSwap {
+    function buy(address _token, uint _amountOutMin) external payable;
+    function sell(address _token, uint _amountIn, uint _amountOutMin) external;
+}
+
 contract PayoutAgent is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     INovationRouter02 pcsRouter = INovationRouter02(0x10ED43C718714eb63d5aA57B78B54704E256024E);
     INovationRouter02 novRouter = INovationRouter02(0x0Fa0544003C3Ad35806d22774ee64B7F6b56589b);
+    ISellessSwap sellessSwap = ISellessSwap(0x2085B84912531B126f1C92cd70A71381713f0795);
     
     IERC20 public payoutToken;
     IERC20 public token;
@@ -22,9 +28,10 @@ contract PayoutAgent is Ownable, ReentrancyGuard {
         payoutToken = IERC20(_payout);
         token = IERC20(_token);
         token.approve(address(pcsRouter), type(uint).max);
+        payoutToken.approve(address(sellessSwap), type(uint).max);
     }
 
-    function payout(address _to, uint _amount) external nonReentrant {
+    function payout(address _to, uint _amount, bool _sellback) external nonReentrant {
         if (address(token) == address(payoutToken)) {
             token.safeTransferFrom(msg.sender, _to, _amount);    
             return;
@@ -34,11 +41,25 @@ contract PayoutAgent is Ownable, ReentrancyGuard {
         token.safeTransferFrom(msg.sender, address(this), _amount);
         _amount = token.balanceOf(address(this)) - before;
 
-        uint bnbAmount = _swapForBNB(_amount);
-        _swapForToken(_to, bnbAmount);
+        if (address(payoutToken) == address(wbnb)) {
+            _swapForBNB(_to, _amount);
+            return;
+        }
+        uint bnbAmount = _swapForBNB(address(this), _amount);
+        if (!_sellback) {
+            _swapForToken(_to, bnbAmount);
+            return;
+        }
+        before = payoutToken.balanceOf(address(this));
+        _swapForToken(address(this), bnbAmount);
+        _amount = payoutToken.balanceOf(address(this)) - before;
+
+        // Sell-back with tax
+        _amount = _sellPayoutToken(_amount);
+        _buyToken(_to, _amount);
     }
 
-    function _swapForBNB(uint _amount) internal returns (uint) {
+    function _swapForBNB(address _to, uint _amount) internal returns (uint) {
         address[] memory path = new address[](2);
         path[0] = address(token);
         path[1] = address(wbnb);
@@ -48,7 +69,7 @@ contract PayoutAgent is Ownable, ReentrancyGuard {
             _amount, 
             0, 
             path, 
-            address(this), 
+            _to, 
             block.timestamp
         );
         return address(this).balance - before;
@@ -60,6 +81,26 @@ contract PayoutAgent is Ownable, ReentrancyGuard {
         path[1] = address(payoutToken);
 
         uint[] memory amounts = novRouter.swapExactETHForTokens{value: _amount}(
+            0, 
+            path, 
+            _to, 
+            block.timestamp
+        );
+        return amounts[1];
+    }
+
+    function _sellPayoutToken(uint _amount) internal returns (uint) {
+        uint before = address(this).balance;
+        sellessSwap.sell(address(payoutToken), _amount, 0);
+        return address(this).balance - before;
+    }
+
+    function _buyToken(address _to, uint _amount) internal returns (uint) {
+        address[] memory path = new address[](2);
+        path[0] = address(wbnb);
+        path[1] = address(token);
+
+        uint[] memory amounts = pcsRouter.swapExactETHForTokens{value: _amount}(
             0, 
             path, 
             _to, 

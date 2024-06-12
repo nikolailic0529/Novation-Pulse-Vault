@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 interface IPayoutAgent {
-    function payout(address, uint) external;
+    function payout(address, uint, bool) external;
 }
 
 contract TefiVault is Ownable, Pausable, ReentrancyGuard {
@@ -178,7 +178,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         emit Deposited(msg.sender, _amount);
     }
 
-    function withdraw(uint _amount) external nonReentrant clearDustShare updateUserList {
+    function withdraw(uint _amount, bool _sellback) external nonReentrant clearDustShare updateUserList {
         UserInfo storage user = users[msg.sender];
         uint principal = principalOf(msg.sender);
         require (principal >= _amount, "exceeded amount");
@@ -194,12 +194,12 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         // asset.safeTransfer(msg.sender, _amount);
         asset.safeTransfer(treasuryWallet, _amount * 5 / 100);
         _amount = _amount * 95 / 100;
-        IPayoutAgent(payoutAgent).payout(msg.sender, _amount);
+        IPayoutAgent(payoutAgent).payout(msg.sender, _amount, _sellback);
 
         emit Withdrawn(msg.sender, _amount);
     }
 
-    function withdrawAll() external nonReentrant clearDustShare updateUserList {
+    function withdrawAll(bool _sellback) external nonReentrant clearDustShare updateUserList {
         UserInfo storage user = users[msg.sender];
         require (user.share > 0, "!balance");
 
@@ -228,14 +228,14 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         _amount -= (withdrawalFee + profitFee + left);
         
         // asset.safeTransfer(msg.sender, _amount);
-        IPayoutAgent(payoutAgent).payout(msg.sender, _amount);
+        IPayoutAgent(payoutAgent).payout(msg.sender, _amount, _sellback);
 
         investWhitelist[msg.sender] = false;
 
         emit WithdrawnAll(msg.sender, _amount);
     }
 
-    function claim() external nonReentrant clearDustShare updateUserList {
+    function claim(bool _sellback) external nonReentrant clearDustShare updateUserList {
         UserInfo storage user = users[msg.sender];
         require (user.claimedAt < user.expireAt, "expired");
 
@@ -252,7 +252,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         // asset.safeTransfer(msg.sender, _earned);
         address referral = referrals[msg.sender];
         asset.safeTransfer(referral != address(0) ? referral : treasuryWallet, _earned * 5 / 100);
-        IPayoutAgent(payoutAgent).payout(msg.sender, _earned * 90 / 100);
+        IPayoutAgent(payoutAgent).payout(msg.sender, _earned * 90 / 100, _sellback);
 
         profits -= _min(profits, _earned* 95 / 100);
 
