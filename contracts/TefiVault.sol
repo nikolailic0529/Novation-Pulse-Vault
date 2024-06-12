@@ -164,7 +164,10 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     function earned(address _user) public view returns (uint) {
         UserInfo storage user = users[_user];
         uint bal = balanceOf(_user);
-        return user.amount < bal ? (bal - user.amount) : 0;
+        uint _earned = user.amount < bal ? (bal - user.amount) : 0;
+        uint _maxSupply = vipWhitelist[_user] ? maxVipSupply : maxUserSupply;
+        if (user.amount > _maxSupply) return _earned * _maxSupply / user.amount;
+        return _earned;
     }
 
     function claimable(address _user) public view returns (uint) {
@@ -374,6 +377,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     function claim(bool _sellback) external nonReentrant updateUserList clearDustShare {
         UserInfo storage user = users[msg.sender];
         require (permanentWhitelist[msg.sender] || user.claimedAt < user.expireAt, "expired");
+        require (user.amount <= (vipWhitelist[msg.sender] ? maxVipSupply : maxUserSupply), "exeeded user max supply");
 
         uint availableEarned = earned(msg.sender);
         require (availableEarned > 0, "!earned");
@@ -410,6 +414,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     function compound() external whenNotPaused nonReentrant {
         UserInfo storage user = users[msg.sender];
         require (permanentWhitelist[msg.sender] || block.timestamp < user.expireAt, "expired");
+        require (user.amount <= (vipWhitelist[msg.sender] ? maxVipSupply : maxUserSupply), "exeeded user max supply");
 
         uint _earned = earned(msg.sender);
         require (_earned > 0, "!earned");
