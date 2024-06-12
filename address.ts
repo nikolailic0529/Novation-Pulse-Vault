@@ -8,7 +8,8 @@ export const address = {
         usdt: "0x55d398326f99059fF775485246999027B3197955",
         strategy: "0xdC6768CC7179aecee697ADaAE55F0b8239Ccd25B",
         // vault: "0xdabf7045B2dbFd9885B2C51876b88d5A37739e84",
-        vault: "0x9bF8D97F683B2Aa97BA799d72D0e4Df4F91c19e0",
+        // vault: "0x9bF8D97F683B2Aa97BA799d72D0e4Df4F91c19e0",
+        vault: "0x40df55b76e895879a94f818a70699fef3fe63e89",
         payoutAgent: "0x8C61553Ed7Baf005ec6e04ea0Abb1eA06483E68d"
     },
     testnet: {

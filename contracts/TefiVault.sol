@@ -27,7 +27,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     address public strategy;
     IERC20 public asset;
     address public payoutAgent;
-    address public treasuryWallet = 0x647BB910944165D14b961985c28b06b08cA47f77;
+    address public treasuryWallet = 0x63F0984f33538c779F8645D07eEe5b9682fdbb08;
     address public reserveWallet = 0x7B9e671B6cd10FD782Bdb982D40ffc0435C3C030;
 
     uint public totalSupply;
@@ -43,6 +43,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     mapping(address => bool) public invested;
     mapping(address => bool) public investWhitelist;
     mapping(address => bool) public permanentWhitelist;
+    mapping(address => bool) public vipWhitelist;
     mapping(address => bool) public agents;
 
     uint public rebalanceRate = 20;
@@ -126,6 +127,10 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
             ++count;
         }
         return _referrals;
+    }
+
+    function canBeRefered(address _wallet) external view returns(bool) {
+        return invested[_wallet];
     }
 
     function balance() public view returns (uint) {
@@ -331,22 +336,26 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         delete users[_user];
 
         uint withdrawalFee = (_amount - availableEarned) * 5 / 100;
-        uint profitFee = _earned * 10 / 100; // referralFee + withdrawalFee
+        uint claimFee = _earned * 5 / 100;
+        uint referralFee = _earned * 3 / 100;
 
         address referral = referrals[_user];
-        if (referral != address(0)) {
-            if (profitFee > 0) asset.safeTransfer(referral, profitFee);
-            asset.safeTransfer(treasuryWallet, withdrawalFee);
-        } else {
-            asset.safeTransfer(treasuryWallet, withdrawalFee + profitFee);
+        if (claimFee > 0) {
+            asset.safeTransfer(treasuryWallet, claimFee);
+            if (referral != address(0)) {
+                asset.safeTransfer(referral, referralFee);
+            } else {
+                asset.safeTransfer(reserveWallet, referralFee);
+            }
         }
+        asset.safeTransfer(treasuryWallet, withdrawalFee);
         if (left > 0) asset.safeTransfer(reserveWallet, left);
 
-        _amount -= (withdrawalFee + profitFee + left);
+        _amount -= (withdrawalFee + claimFee + referralFee + left);
         
         IPayoutAgent(payoutAgent).payout(_user, _amount, _sellback);
 
-        if (!permanentWhitelist[_user]) {
+        if (!permanentWhitelist[_user] && !vipWhitelist[_user]) {
             investWhitelist[_user] = false;
         }
 
@@ -369,17 +378,21 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         totalShare -= share;
         profits -= _min(profits, availableEarned);
         
+        uint claimFee = _earned * 5 / 100;
+        uint referralFee = _earned * 3 / 100;
+        
         address referral = referrals[msg.sender];
-        uint profitFee = _earned * 10 / 100; // referralFee + withdrawalFee
-        if (referral != address(0)) {
-            asset.safeTransfer(referral, profitFee / 2);
-            asset.safeTransfer(treasuryWallet, profitFee / 2);
-        } else {
-            asset.safeTransfer(treasuryWallet, profitFee);
+        if (claimFee > 0) {
+            asset.safeTransfer(treasuryWallet, claimFee);
+            if (referral != address(0)) {
+                asset.safeTransfer(referral, referralFee);
+            } else {
+                asset.safeTransfer(reserveWallet, referralFee);
+            }
         }
         if (left > 0) asset.safeTransfer(reserveWallet, left);
 
-        uint _payout = _earned - profitFee;
+        uint _payout = _earned - claimFee - referralFee;
         IPayoutAgent(payoutAgent).payout(msg.sender, _payout, _sellback);
 
         emit Claimed(msg.sender, _payout);
@@ -392,7 +405,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         uint _earned = earned(msg.sender);
         require (_earned > 0, "!earned");
 
-        uint compounded = _earned * 95 / 100;
+        uint compounded = _earned * 97 / 100; // After 3% referral fee
         uint bal = balance();
         uint share1 = _earned * totalShare / bal;
         uint share2 = compounded * (totalShare - share1) / (bal - _earned);
@@ -405,7 +418,8 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         profits -= _min(profits, _earned);
 
         address referral = referrals[msg.sender];
-        asset.safeTransfer(referral != address(0) ? referral : treasuryWallet, _earned * 5 / 100);
+        // Taking 3% referral fee
+        asset.safeTransfer(referral != address(0) ? referral : reserveWallet, _earned * 3 / 100);
 
         _rebalance();
 
@@ -591,6 +605,13 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         require (!isPublic, "!private mode");
         for (uint i = 0; i < _wallets.length; i++) {
             permanentWhitelist[_wallets[i]] = _flag;
+        }
+    }
+
+    function setVipWhitelist(address[] calldata _wallets, bool _flag) external onlyOwner {
+        require (!isPublic, "!private mode");
+        for (uint i = 0; i < _wallets.length; i++) {
+            vipWhitelist[_wallets[i]] = _flag;
         }
     }
 
