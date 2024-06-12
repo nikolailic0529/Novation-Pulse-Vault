@@ -48,9 +48,11 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
 
     uint public rebalanceRate = 20;
     uint public farmPeriod = 60 days;
+    uint public farmVipPeriod = 110 days;
     uint public expireDelta = 2 days;
     uint public maxSupply = type(uint).max;
     uint public maxUserSupply = 100_000 ether;
+    uint public maxVipSupply = 500_000 ether;
     bool public isPublic;
 
     bool locked;
@@ -215,6 +217,8 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         for (uint i = 0; i < _users.length;) {
             uint _amount = _amounts[i];
             address _user = _users[i];
+            UserInfo storage user = users[_user];
+            bool isVip = vipWhitelist[msg.sender];
             require (_amount > 0, "!amount");
 
             uint share;
@@ -224,12 +228,16 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
                 share = (_amount * _totalShare) / poolBal;
             }
 
-            users[_user].share += share;
-            users[_user].amount += _amount;
+            require (user.amount + _amount <= (isVip ? maxVipSupply : maxUserSupply), "exeeded user max supply");
+
+            if (user.depositedAt == 0) user.depositedAt = block.timestamp;
+
+            user.share += share;
+            user.amount += _amount;
             investWhitelist[_user] = true;
 
-            if (users[_user].expireAt == 0) {
-                users[_user].expireAt = block.timestamp + farmPeriod;
+            if (user.expireAt == 0) {
+                user.expireAt = block.timestamp + (isVip ? farmVipPeriod : farmPeriod);
             }
 
             if (!invested[_user]) invested[_user] = true;
@@ -239,9 +247,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
             poolBal += _amount;
             totalAmount += _amount;
             _totalShare += share;
-            unchecked {
-                ++i;
-            }
+            ++i;
         }
 
         asset.transferFrom(msg.sender, address(this), totalAmount);
@@ -256,6 +262,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
 
     function deposit(uint _amount) external whenNotPaused nonReentrant updateUserList {
         UserInfo storage user = users[msg.sender];
+        bool isVip = vipWhitelist[msg.sender];
         require (isPublic || investWhitelist[msg.sender], "!investor");
         require (
             user.share == 0 || 
@@ -264,7 +271,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
             "expired"
         );
         require (_amount > 0, "!amount");
-        require (user.amount + _amount <= maxUserSupply, "exeeded user max supply");
+        require (user.amount + _amount <= (isVip ? maxVipSupply : maxUserSupply), "exeeded user max supply");
         require (totalSupply + _amount <= maxSupply, "exceeded max supply");
 
         uint share;
@@ -277,13 +284,15 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
 
         asset.transferFrom(msg.sender, address(this), _amount);
 
+        if (user.depositedAt == 0) user.depositedAt = block.timestamp;
+
         user.share += share;
         user.amount += _amount;
         totalShare += share;
         totalSupply += _amount;
 
         if (user.expireAt == 0) {
-            user.expireAt = block.timestamp + farmPeriod;
+            user.expireAt = block.timestamp + (isVip ? farmVipPeriod : farmPeriod);
             user.claimedAt = block.timestamp;
         }
 
@@ -409,6 +418,9 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         uint bal = balance();
         uint share1 = _earned * totalShare / bal;
         uint share2 = compounded * (totalShare - share1) / (bal - _earned);
+
+        bool isVip = vipWhitelist[msg.sender];
+        require (user.amount + compounded <= (isVip ? maxVipSupply : maxUserSupply), "exeeded user max supply");
         
         user.share -= (share1 - share2);
         user.amount += compounded;
@@ -542,7 +554,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     function clearExpiredUsers(uint _count) external onlyOwner nonReentrant {
         uint count;
         for (uint i = 0; i < userList.length(); i++) {
-            if (users[userList.at(i)].expireAt + expireDelta <= block.timestamp) {unchecked {++count;}}
+            if (users[userList.at(i)].expireAt + expireDelta <= block.timestamp) ++count;
         }
         require (count > 0, "!expired users");
         
@@ -557,7 +569,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
             
             _withdrawAll(user, true);
             wallets[count] = user;
-            unchecked { ++count; }
+            ++count;
 
             if (count >= _count) break;
         }
@@ -567,8 +579,9 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         }
     }
 
-    function updateFarmPeriod(uint _period) external onlyOwner {
+    function updateFarmPeriod(uint _period, uint _vipPeriod) external onlyOwner {
         farmPeriod = _period;
+        farmVipPeriod = _vipPeriod;
     }
 
     function updateExpireDelta(uint _delta) external onlyOwner {
@@ -611,7 +624,19 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     function setVipWhitelist(address[] calldata _wallets, bool _flag) external onlyOwner {
         require (!isPublic, "!private mode");
         for (uint i = 0; i < _wallets.length; i++) {
-            vipWhitelist[_wallets[i]] = _flag;
+            address _user = _wallets[i];
+            UserInfo storage user = users[_user];
+            if (vipWhitelist[_user] == true && _flag == false && user.expireAt > block.timestamp) {
+                user.expireAt = user.depositedAt + farmPeriod;
+                // Update wrong last claimed time
+                if (user.expireAt < user.claimedAt) user.claimedAt = user.expireAt;
+            }
+            if (vipWhitelist[_user] == false && _flag == true && user.expireAt > 0) {
+                user.expireAt = user.depositedAt + farmVipPeriod;
+                // Reset reward starting from the current time if it already expired
+                if (user.expireAt < block.timestamp) user.claimedAt = block.timestamp;
+            }
+            vipWhitelist[_user] = _flag;
         }
     }
 
@@ -631,8 +656,9 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         maxSupply = _supply;
     }
 
-    function updateUserMaxSupply(uint _supply) external onlyOwner {
+    function updateUserMaxSupply(uint _supply, uint _vipSupply) external onlyOwner {
         maxUserSupply = _supply;
+        maxVipSupply = _vipSupply;
     }
 
     function updateStrategy(address _strategy) external onlyOwner whenPaused {
