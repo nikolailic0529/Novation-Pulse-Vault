@@ -7,7 +7,7 @@ export const address = {
         vfx: "0xe06f46AFD251B06152B478d8eE3aCea534063994",
         usdt: "0x55d398326f99059fF775485246999027B3197955",
         strategy: "0x656a0c3aC9900f74305FcC0338DCaD8A8DF4f9BF",
-        vault: "0x05054faE1f746581f5bd998A47d9f347454ffE23",
+        vault: "0xdabf7045B2dbFd9885B2C51876b88d5A37739e84",
         payoutAgent: "0x8C61553Ed7Baf005ec6e04ea0Abb1eA06483E68d"
     },
     testnet: {

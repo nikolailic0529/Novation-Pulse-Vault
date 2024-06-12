@@ -34,6 +34,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     uint public underlying;
     uint public profits;
     uint public boostFund;
+    mapping (uint => uint) public dailyProfit;
 
     mapping(address => UserInfo) public users;
     mapping(address => address) public referrals;
@@ -47,7 +48,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     uint public farmPeriod = 60 days;
     uint public expireDelta = 2 days;
     uint public maxSupply = type(uint).max;
-    uint public maxUserSupply = 1_000_000 ether;
+    uint public maxUserSupply = 100_000 ether;
     bool public isPublic;
 
     bool locked;
@@ -104,7 +105,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         return userList.length();
     }
 
-    function myReferredWallets(address _wallet) external view returns (address[] memory) {
+    function referredWallets(address _wallet) external view returns (address[] memory) {
         uint count;
         for (uint i = 0; i < userList.length(); i++) {
             address user = userList.at(i);
@@ -360,7 +361,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         emit Claimed(msg.sender, _earned * 90 / 100);
     }
 
-    function compound() external nonReentrant {
+    function compound() external whenNotPaused nonReentrant {
         UserInfo storage user = users[msg.sender];
         require (permanentWhitelist[msg.sender] || user.claimedAt < user.expireAt, "expired");
 
@@ -391,7 +392,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         emit Compounded(msg.sender, compounded);
     }
 
-    function rebalance() external nonReentrant {
+    function rebalance() external whenNotPaused nonReentrant {
         _rebalance();
     }
     
@@ -429,6 +430,10 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         if (curBal >= keepBal) return 0;
 
         return keepBal - curBal;
+    }
+
+    function todayProfit() external view returns (uint) {
+        return dailyProfit[block.timestamp / 1 days * 1 days];
     }
 
     function _min(uint x, uint y) internal pure returns (uint) {
@@ -471,6 +476,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     function payout(uint _amount) external nonReentrant {
         asset.safeTransferFrom(msg.sender, address(this), _amount);
         profits += _amount;
+        dailyProfit[block.timestamp / 1 days * 1 days] += _amount;
     }
 
     function clearExpiredUsers(uint _count) external onlyOwner nonReentrant {
