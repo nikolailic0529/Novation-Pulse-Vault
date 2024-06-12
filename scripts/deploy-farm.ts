@@ -1,6 +1,6 @@
 import * as hre from "hardhat";
-import { TefiVault } from "../types/ethers-contracts/TefiVault";
-import { TefiVault__factory } from "../types/ethers-contracts/factories/TefiVault__factory";
+import { PulseVault } from "../types/ethers-contracts/PulseVault";
+import { PulseVault__factory } from "../types/ethers-contracts/factories/PulseVault__factory";
 import { Strategy } from "../types/ethers-contracts/Strategy";
 import { Strategy__factory } from "../types/ethers-contracts/factories/Strategy__factory";
 import address from "../address";
@@ -20,9 +20,9 @@ const toWei = (val: any, unit = 18) => {
 async function deploy() {
   console.log(new Date().toLocaleString());
 
-  const deployer = (await ethers.getSigners()).filter(account => account.address === "0x32f1C25148DeCbdBe69E1cc2F87E0237BC34b700")[0];
+  // const deployer = (await ethers.getSigners()).filter(account => account.address === "0x32f1C25148DeCbdBe69E1cc2F87E0237BC34b700")[0];
   // const deployer = (await ethers.getSigners()).filter(account => account.address === "0x12D16f3A335dfdB575FacE8e3ae6954a1C0e24f1")[0];
-  // const deployer = (await ethers.getSigners()).filter(account => account.address === "0x647BB910944165D14b961985c28b06b08cA47f77")[0];
+  const deployer = (await ethers.getSigners()).filter(account => account.address === "0x647BB910944165D14b961985c28b06b08cA47f77")[0];
 
   // const deployer = (await ethers.getSigners()).filter(
   //   (account) =>
@@ -48,13 +48,13 @@ async function deploy() {
 
   const strategyFactory: Strategy__factory = new Strategy__factory(deployer);
   let strategy: Strategy = strategyFactory.attach(strategyAddress).connect(deployer);
-  if ("Redeploy" && true) {
-      strategy = await strategyFactory.deploy(assetAddress);
-  }
+  // if ("Redeploy" && true) {
+  //     strategy = await strategyFactory.deploy(assetAddress);
+  // }
   console.log('Strategy: ', strategy.address);
 
-  const vaultFactory: TefiVault__factory = new TefiVault__factory(deployer);
-  let vault: TefiVault = vaultFactory.attach(vaultAddress).connect(deployer);
+  const vaultFactory: PulseVault__factory = new PulseVault__factory(deployer);
+  let vault: PulseVault = vaultFactory.attach(vaultAddress).connect(deployer);
   if ("Redeploy" && true) {
     vault = await vaultFactory.deploy(
       strategy.address,
@@ -62,9 +62,9 @@ async function deploy() {
       payoutAddress
     );
   }
-  console.log("TefiVault: ", vault.address);
+  console.log("PulseVault: ", vault.address);
 
-  await strategy.setVault(vault.address);
+  // await strategy.setVault(vault.address);
 
   const afterBalance = await deployer.getBalance();
   console.log("Deployed cost:", beforeBalance.sub(afterBalance).toString());
