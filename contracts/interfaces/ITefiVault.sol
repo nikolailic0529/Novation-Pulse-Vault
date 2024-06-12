@@ -26,7 +26,7 @@ interface ITefiVaultForPulse is ITefiVault {
     // This method will charge the bot exact refillable amount automatically.
     function autoRefill() external;
     // The bot reports lost amount using this method.
-    function reportLost(uint) external;
+    function reportLoss(uint) external;
     // The bot will be able to return back all user funds using this method when it closed.
     // At that time, the contract will charge the bot current underlying amount
     // NOTE: Don't send any amount to the contract address directly

@@ -12,6 +12,10 @@ interface IPayoutAgent {
     function payout(address, uint, bool) external;
 }
 
+interface IStrategy {
+    function deposit(uint amount) external;
+}
+
 contract TefiVault is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -452,6 +456,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         if (invest == 0) return;
         asset.safeTransfer(strategy, invest);
         underlying += invest;
+        IStrategy(strategy).deposit(invest);
     }
 
     function _calculateExpiredEarning(address _user) internal view returns (uint) {
@@ -487,7 +492,7 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
         return x > y ? y : x;
     }
 
-    function reportLost(uint _loss) external onlyStrategy nonReentrant {
+    function reportLoss(uint _loss) external onlyStrategy nonReentrant {
         require (_loss <= totalSupply / 2, "wrong lose report");
         uint toInvest = _loss;
         if (_loss <= profits) {
@@ -497,7 +502,10 @@ contract TefiVault is Ownable, Pausable, ReentrancyGuard {
             underlying -= (_loss - profits);
             profits = 0;
         }
-        if (toInvest > 0) asset.safeTransfer(strategy, toInvest);
+        if (toInvest > 0) {
+            asset.safeTransfer(strategy, toInvest);
+            IStrategy(strategy).deposit(toInvest);
+        }
         
         emit Lost(_loss);
     }
