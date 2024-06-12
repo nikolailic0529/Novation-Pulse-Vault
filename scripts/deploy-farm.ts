@@ -57,7 +57,7 @@ async function deploy() {
   let vault: TefiVault = vaultFactory.attach(vaultAddress).connect(deployer);
   if ("Redeploy" && true) {
     vault = await vaultFactory.deploy(
-      "0x7B9e671B6cd10FD782Bdb982D40ffc0435C3C030",
+      strategyAddress,
       assetAddress,
       payoutAddress
     );

@@ -24,7 +24,7 @@ async function deploy() {
 
   const deployer = (await ethers.getSigners()).filter(
     (account) =>
-      account.address === "0x12D16f3A335dfdB575FacE8e3ae6954a1C0e24f1"
+      account.address === "0x7B9e671B6cd10FD782Bdb982D40ffc0435C3C030"
   )[0];
 
   console.log("Deploying contracts with the account:", deployer.address);
